@@ -1,0 +1,83 @@
+{
+  "experiment_title": "Analysis of Daily Streamflow and Annual Hydrologic Indicators for Iowa River (USGS 05454500)",
+  "hypothesis": "By applying quality control and calibration practices analogous to remote sensing studies, the daily streamflow data for the Iowa River from 2019 to 2023 will reveal consistent trends in mean flow, low flow conditions, and peak flow events that enhance water resource management.",
+  "introduction": "This experiment retrieves daily streamflow data for USGS site 05454500 using the USGS NWIS REST API. The workflow incorporates sensor-calibration-like quality control measures to ensure data integrity, similar to techniques used in remote sensing. Annual hydrologic indicators\u2014including mean flow, 7-day low flow, and peak flow dates\u2014are computed to provide insights into hydrologic variability and to support cross-validation with other environmental monitoring data such as soil moisture measurements.",
+  "prerequisites": [
+    "Install Python 3.9+ from https://www.python.org/downloads/",
+    "Install required libraries by running: pip install requests pandas matplotlib"
+  ],
+  "data_sources": [
+    {
+      "name": "USGS NWIS REST API (Daily Values)",
+      "url": "https://waterservices.usgs.gov/nwis/dv/",
+      "description": "Provides daily streamflow data for USGS sites. For this experiment, site number 05454500 and parameter code '00060' (discharge in cubic feet per second) are used for the period from 2019-01-01 to 2023-12-31. The data is handled with quality control procedures similar to sensor calibration in remote sensing."
+    }
+  ],
+  "steps": [
+    {
+      "step_number": 1,
+      "type": "manual:setup",
+      "description": "Prepare the workspace and data folder",
+      "action": "Create a main experiment folder. Optionally create an 'input_data/' subfolder if you plan to cache downloaded files. Organize your scripts and output directories for efficient workflow management.",
+      "llm_edit_instruction": "No code generation is needed for this step. Instruct the user to create the workspace folders as described.",
+      "code_snippet": "",
+      "expected_outcome": "Workspace is organized with a dedicated experiment folder and a subfolder for local data storage if needed.",
+      "data_source": ""
+    },
+    {
+      "step_number": 2,
+      "type": "code:api",
+      "description": "Fetch daily streamflow data from USGS",
+      "llm_edit_instruction": "Create a Python function named 'fetch_streamflow_data' that accepts three string parameters: 'usgs_site_number', 'start_date_str', and 'end_date_str'. The function should:\n1. Construct the URL for the USGS NWIS DV service using 'https://waterservices.usgs.gov/nwis/dv/' with query parameters: 'format=json', 'sites' set to the provided site number, 'startDT' set to start_date_str, 'endDT' set to end_date_str, 'parameterCd' set to '00060', and 'siteStatus=all'.\n2. Use the 'requests' library to send a GET request. Include error handling (try-except blocks) for requests.exceptions.RequestException and JSON parsing errors (KeyError, IndexError, JSONDecodeError).\n3. Parse the JSON response to extract the 'dateTime' and 'value' fields from the nested structure.\n4. Convert 'dateTime' values to pandas datetime objects and 'value' fields to floats. Assemble these into a pandas DataFrame with columns 'date' and 'streamflow'.\n5. Return the DataFrame or None if an error occurs.",
+      "code_snippet": "# Example snippet:\n# url = 'https://waterservices.usgs.gov/nwis/dv/'\n# params = {\n#   'format': 'json',\n#   'sites': usgs_site_number,\n#   'startDT': start_date_str,\n#   'endDT': end_date_str,\n#   'parameterCd': '00060',\n#   'siteStatus': 'all'\n# }\n# try:\n#     response = requests.get(url, params=params)\n#     response.raise_for_status()\n#     data = response.json()\n#     # Parse the nested JSON to extract dateTime and value\n# except (requests.exceptions.RequestException, KeyError, IndexError, JSONDecodeError) as e:\n#     print(f'Error fetching data: {e}')\n#     return None",
+      "expected_outcome": "A pandas DataFrame with columns 'date' (datetime) and 'streamflow' (float) representing the daily data, or None on error.",
+      "data_source": "USGS NWIS REST API (Daily Values)"
+    },
+    {
+      "step_number": 3,
+      "type": "code:script",
+      "description": "Perform basic data validation",
+      "llm_edit_instruction": "Create a Python function named 'validate_streamflow_data' that takes a pandas DataFrame as input. The function should:\n1. Check if the DataFrame is None or empty; if so, print an error message and return None.\n2. Verify the presence of the 'date' and 'streamflow' columns.\n3. Check for missing (NaN) values in 'streamflow'. If found, print a warning with the count or percentage of missing records (similar to quality control in sensor calibration).\n4. Return the DataFrame unchanged for further processing.",
+      "code_snippet": "# Example snippet:\n# if df is None or df.empty:\n#     print('Empty DataFrame')\n# if 'date' not in df.columns or 'streamflow' not in df.columns:\n#     print('DataFrame missing required columns')\n# missing_count = df['streamflow'].isna().sum()\n# if missing_count > 0:\n#     print(f'Warning: {missing_count} missing streamflow values detected')",
+      "expected_outcome": "The function validates the DataFrame, alerts for any missing values, and returns the unchanged DataFrame.",
+      "data_source": ""
+    },
+    {
+      "step_number": 4,
+      "type": "code:script",
+      "description": "Calculate annual indicators: mean annual flow, annual 7-day low flow, and date of annual peak flow",
+      "llm_edit_instruction": "Create a Python function named 'calculate_annual_indicators' that accepts the validated daily streamflow DataFrame. Steps include:\n1. Ensure the 'date' column is in datetime format and extract a new 'year' column.\n2. For each year, calculate:\n   (a) Mean annual flow from the average of 'streamflow'.\n   (b) Annual 7-day low flow by computing a rolling mean (window=7, min_periods=7) over 'streamflow' and selecting the minimum value.\n   (c) Date of annual peak flow by identifying the date corresponding to the maximum 'streamflow'.\n3. Assemble these indicators into a new DataFrame with columns: 'year', 'mean_annual_flow', 'annual_7day_low_flow', and 'peak_flow_date'.\n4. Return the new DataFrame, ensuring quality control analogous to sensor calibration during calculations.",
+      "code_snippet": "# Example snippet:\n# df['year'] = df['date'].dt.year\n# df['7day_avg'] = df['streamflow'].rolling(window=7, min_periods=7).mean()\n# annual_mean = df.groupby('year')['streamflow'].mean()\n# annual_low = df.groupby('year')['7day_avg'].min()\n# peak_dates = df.loc[df.groupby('year')['streamflow'].idxmax(), ['date']]\n# summary = pd.DataFrame({\n#   'year': annual_mean.index,\n#   'mean_annual_flow': annual_mean.values,\n#   'annual_7day_low_flow': annual_low.values,\n#   'peak_flow_date': peak_dates['date'].values\n# })",
+      "expected_outcome": "A summary DataFrame with annual hydrologic indicators: mean flow, annual 7-day low flow, and peak flow date.",
+      "data_source": ""
+    },
+    {
+      "step_number": 5,
+      "type": "code:script",
+      "description": "Visualize the complete daily streamflow hydrograph",
+      "llm_edit_instruction": "Create a Python function named 'plot_daily_hydrograph' that takes the daily streamflow DataFrame as input. The function should:\n1. Check if the DataFrame is valid (not None or empty).\n2. Use matplotlib to plot a time series with 'date' on the x-axis and 'streamflow' on the y-axis.\n3. Set appropriate axis labels ('Date', 'Streamflow (cfs)'), title (e.g., 'Daily Streamflow Hydrograph: Iowa River (2019-2023)'), and grid.\n4. Optimize layout with plt.tight_layout(), save the figure as 'daily_hydrograph.png', and call plt.close().\n5. Print a confirmation message upon successful saving.",
+      "code_snippet": "# Example snippet:\n# plt.figure(figsize=(12, 6))\n# plt.plot(df['date'], df['streamflow'], label='Streamflow')\n# plt.xlabel('Date')\n# plt.ylabel('Streamflow (cfs)')\n# plt.title('Daily Streamflow Hydrograph: Iowa River (2019-2023)')\n# plt.grid(True)\n# plt.tight_layout()\n# plt.savefig('daily_hydrograph.png')\n# plt.close()",
+      "expected_outcome": "A PNG file named 'daily_hydrograph.png' showing the complete daily streamflow hydrograph for the study period.",
+      "data_source": ""
+    },
+    {
+      "step_number": 6,
+      "type": "code:script",
+      "description": "Visualize annual indicators summary",
+      "llm_edit_instruction": "Create a Python function named 'plot_annual_indicators' that takes the annual indicators DataFrame as input. The function should:\n1. Verify that the DataFrame is valid and non-empty.\n2. Create a plot (using subplots or a combined plot) to display annual mean flow and annual 7-day low flow as lines or bars.\n3. Overlay text annotations or a table with the date of the annual peak flow for each year.\n4. Add axis labels, legend, and a title (e.g., 'Annual Hydrologic Indicators for Iowa River (2019-2023)') along with a grid.\n5. Optimize the layout with plt.tight_layout(), save the figure as 'annual_indicators_summary.png', and call plt.close().\n6. Print a confirmation message post-saving.",
+      "code_snippet": "# Example snippet:\n# fig, ax = plt.subplots(figsize=(10, 6))\n# ax.plot(annual_df['year'], annual_df['mean_annual_flow'], marker='o', label='Mean Annual Flow')\n# ax.plot(annual_df['year'], annual_df['annual_7day_low_flow'], marker='s', label='Annual 7-day Low Flow')\n# for index, row in annual_df.iterrows():\n#     ax.text(row['year'], row['mean_annual_flow'], str(row['peak_flow_date'].date()), fontsize=8, ha='center')\n# ax.set_xlabel('Year')\n# ax.set_ylabel('Flow (cfs)')\n# ax.set_title('Annual Hydrologic Indicators for Iowa River (2019-2023)')\n# ax.legend()\n# ax.grid(True)\n# plt.tight_layout()\n# plt.savefig('annual_indicators_summary.png')\n# plt.close()",
+      "expected_outcome": "A PNG file named 'annual_indicators_summary.png' that summarizes annual mean flow, 7-day low flow, and annotates the peak flow dates.",
+      "data_source": ""
+    },
+    {
+      "step_number": 7,
+      "type": "code:script",
+      "description": "Main execution block to orchestrate the experiment",
+      "llm_edit_instruction": "Append a main execution block using 'if __name__ == \"__main__\":' to perform the following:\n1. Print a start message indicating the beginning of the experiment.\n2. Define parameters: 'usgs_site_number' = '05454500', 'start_date_str' = '2019-01-01', 'end_date_str' = '2023-12-31'.\n3. Call 'fetch_streamflow_data' and print the number of records fetched.\n4. Validate the data using 'validate_streamflow_data'.\n5. Compute annual indicators with 'calculate_annual_indicators'.\n6. Generate both the daily hydrograph and annual indicators plots, printing progress messages along the way.\n7. Print a final message indicating the script has finished.",
+      "code_snippet": "# Example main block:\n# if __name__ == '__main__':\n#     print('Starting streamflow analysis experiment...')\n#     site = '05454500'\n#     start_dt = '2019-01-01'\n#     end_dt = '2023-12-31'\n#     streamflow_df = fetch_streamflow_data(site, start_dt, end_dt)\n#     if streamflow_df is not None and not streamflow_df.empty:\n#         print(f'Fetched {len(streamflow_df)} records.')\n#         streamflow_df = validate_streamflow_data(streamflow_df)\n#         annual_indicators_df = calculate_annual_indicators(streamflow_df)\n#         plot_daily_hydrograph(streamflow_df)\n#         plot_annual_indicators(annual_indicators_df)\n#         print('All plots generated and saved successfully.')\n#     else:\n#         print('Error: No data fetched.')\n#     print('Experiment finished.')",
+      "expected_outcome": "The script orchestrates data fetching, validation, computation of annual indicators, and visualization. Console messages indicate progress, and the plot files are saved successfully.",
+      "data_source": ""
+    }
+  ],
+  "conclusion": "This experiment demonstrates a robust workflow that mirrors quality control techniques used in remote sensing calibration. By leveraging the USGS NWIS REST API to obtain daily streamflow data, and applying systematic validation and computation of hydrologic indicators, the analysis yields valuable insights for the Iowa River. The resulting visualizations support water resource management and provide a framework for integration with other environmental monitoring studies."
+}
