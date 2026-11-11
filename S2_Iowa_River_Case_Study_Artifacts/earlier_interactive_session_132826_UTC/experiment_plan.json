@@ -1,0 +1,85 @@
+{
+  "experiment_title": "Analysis of Daily Streamflow Data for the Iowa River (USGS 05454500)",
+  "hypothesis": "The analysis of annual flow metrics (mean annual flow, 7-day low flow, and peak flow date) for the Iowa River at Iowa City over the period 2019-2023 will reveal temporal variability, seasonal patterns, and highlight any extreme hydrological events. Despite potential challenges in data retrieval due to possible session or rate limitations, careful API usage should provide robust results.",
+  "introduction": "This experiment retrieves, validates, processes, and visualizes daily streamflow discharge data from the USGS for site 05454500 (Iowa River at Iowa City) between January 1, 2019, and December 31, 2023. The study leverages the USGS Water Services API to fetch data in JSON format. Computed annual indicators include the mean annual flow, the minimum 7-day rolling average flow (indicative of low flow conditions), and the date of peak flow. Visual outputs include a complete daily hydrograph and a summary visualization of annual metrics. The approach incorporates industry-standard Python libraries to manage potential challenges related to data access and session handling.",
+  "prerequisites": [
+    "Install Python 3.9+ from https://www.python.org/downloads/",
+    "Install required libraries by running: pip install requests pandas matplotlib"
+  ],
+  "data_sources": [
+    {
+      "name": "USGS Water Services API (Daily Values)",
+      "url": "https://waterservices.usgs.gov/nwis/dv/",
+      "description": "Provides daily average streamflow data (parameter '00060' for discharge in cfs) for USGS sites. For this experiment, use site number 05454500 corresponding to the Iowa River at Iowa City. Data is delivered in JSON format and requires proper handling for session-based navigation and potential rate limits."
+    }
+  ],
+  "steps": [
+    {
+      "step_number": 1,
+      "type": "manual:setup",
+      "description": "Prepare the experiment workspace",
+      "action": "Create the main experiment folder. Optionally, create a sub-directory (e.g., 'input_data/') to store any ancillary files. Data will be fetched via the API, so no static data file is required.",
+      "llm_edit_instruction": "",
+      "code_snippet": "",
+      "tool_config": {},
+      "expected_outcome": "The workspace is organized with a main directory and optional sub-directory for input data.",
+      "data_source": ""
+    },
+    {
+      "step_number": 2,
+      "type": "code:api",
+      "description": "Fetch daily streamflow data from USGS",
+      "action": "",
+      "llm_edit_instruction": "Create a Python function named 'fetch_streamflow_data' that accepts three string arguments: 'usgs_site_number', 'start_date_str', and 'end_date_str'. This function should: \n1. Construct the API request URL using 'https://waterservices.usgs.gov/nwis/dv/' with parameters: 'format=json', 'sites' set to the provided site number, 'startDT', 'endDT', 'parameterCd=00060', and 'siteStatus=all'.\n2. Use the 'requests' library to send a GET request.\n3. Implement error handling using try-except, printing informative errors and returning None if necessary.\n4. Parse the JSON response, navigating the structure (usually under data['value']['timeSeries'][0]['values'][0]['value']) to extract a list of dictionaries containing 'dateTime' and 'value'.\n5. Convert 'dateTime' entries to pandas datetime objects and the 'value' to floats, returning a pandas DataFrame with at least columns 'date' and 'discharge'.",
+      "code_snippet": "# Example snippet:\n# def fetch_streamflow_data(usgs_site_number, start_date_str, end_date_str):\n#     import requests, pandas as pd\n#     url = 'https://waterservices.usgs.gov/nwis/dv/'\n#     params = {\n#         'format': 'json',\n#         'sites': usgs_site_number,\n#         'startDT': start_date_str,\n#         'endDT': end_date_str,\n#         'parameterCd': '00060',\n#         'siteStatus': 'all'\n#     }\n#     try:\n#         response = requests.get(url, params=params)\n#         response.raise_for_status()\n#         data = response.json()\n#         values = data['value']['timeSeries'][0]['values'][0]['value']\n#         records = []\n#         for entry in values:\n#             records.append({\n#                 'date': pd.to_datetime(entry['dateTime']),\n#                 'discharge': float(entry['value'])\n#             })\n#         return pd.DataFrame(records)\n#     except Exception as e:\n#         print(f'Error fetching data: {e}')\n#         return None",
+      "tool_config": {},
+      "expected_outcome": "Returns a pandas DataFrame with 'date' (datetime) and 'discharge' (float) columns for the period 2019-01-01 to 2023-12-31 or None if an error occurs.",
+      "data_source": "USGS Water Services API (Daily Values)"
+    },
+    {
+      "step_number": 3,
+      "type": "code:script",
+      "description": "Perform basic data validation",
+      "action": "",
+      "llm_edit_instruction": "Create a Python function named 'validate_data' that takes a pandas DataFrame with 'date' and 'discharge' columns. The function should:\n1. Check if the DataFrame is None or empty. If so, print an error and return None.\n2. Check for missing values using isnull().sum() for both 'date' and 'discharge'.\n3. Print a summary of any missing values. If missing values are found, remove those rows.\n4. Return the cleaned DataFrame.",
+      "code_snippet": "# Example snippet:\n# def validate_data(df):\n#     if df is None or df.empty:\n#         print('DataFrame is None or empty.')\n#         return None\n#     missing_date = df['date'].isnull().sum()\n#     missing_discharge = df['discharge'].isnull().sum()\n#     print(f'Missing dates: {missing_date}, Missing discharge entries: {missing_discharge}')\n#     if missing_date or missing_discharge:\n#         df = df.dropna(subset=['date', 'discharge'])\n#     return df",
+      "tool_config": {},
+      "expected_outcome": "A validated and cleaned pandas DataFrame with no missing values in the 'date' and 'discharge' columns, or None if invalid.",
+      "data_source": ""
+    },
+    {
+      "step_number": 4,
+      "type": "code:script",
+      "description": "Calculate annual flow indicators",
+      "action": "",
+      "llm_edit_instruction": "Create a Python function named 'calculate_annual_indicators' that accepts the validated daily streamflow DataFrame. This function should:\n1. Confirm the 'date' column is in datetime format and add a 'year' column extracted from 'date'.\n2. For each year, calculate:\n   a. Mean annual flow (the mean of 'discharge').\n   b. Annual 7-day low flow by computing the 7-day rolling average of 'discharge' and obtaining its minimum.\n   c. Date of the annual peak flow by identifying the maximum 'discharge' and its corresponding 'date'.\n3. Combine these metrics into a summary DataFrame with columns: 'year', 'mean_flow', '7day_low_flow', and 'peak_flow_date'.\n4. Return the summary DataFrame.",
+      "code_snippet": "# Example snippet:\n# def calculate_annual_indicators(df):\n#     df['year'] = df['date'].dt.year\n#     mean_flow = df.groupby('year')['discharge'].mean()\n#     low_flow = df.groupby('year').apply(lambda x: x['discharge'].rolling(window=7).mean().min())\n#     peak_flow_date = df.groupby('year').apply(lambda x: x.loc[x['discharge'].idxmax(), 'date'])\n#     summary = pd.DataFrame({\n#         'year': mean_flow.index,\n#         'mean_flow': mean_flow.values,\n#         '7day_low_flow': low_flow.values,\n#         'peak_flow_date': peak_flow_date.values\n#     })\n#     return summary",
+      "tool_config": {},
+      "expected_outcome": "A pandas DataFrame summarizing annual metrics: mean annual flow, 7-day low flow, and peak flow date for each year.",
+      "data_source": ""
+    },
+    {
+      "step_number": 5,
+      "type": "code:script",
+      "description": "Visualize daily hydrograph and annual indicators",
+      "action": "",
+      "llm_edit_instruction": "Create two Python functions for visualization:\n(a) 'plot_daily_hydrograph': Accepts the daily streamflow DataFrame, checks if it is valid, and uses matplotlib to plot a line graph with 'date' on the x-axis and 'discharge' on the y-axis. Label the axes ('Date', 'Discharge (cfs)'), provide an informative title, enable grid lines, use plt.tight_layout(), save the plot as 'daily_hydrograph.png', and then call plt.close().\n(b) 'plot_annual_summary': Accepts the annual summary DataFrame and creates a visualization that may include a bar chart for mean annual flow with an overlay of the 7-day low flow values, or a multi-panel chart displaying each metric. Label axes, add legends and titles, save the figure as 'annual_summary.png', and ensure proper cleanup with plt.close().\nBoth functions should include proper exception/error handling.",
+      "code_snippet": "# Example snippet for daily hydrograph:\n# def plot_daily_hydrograph(df):\n#     import matplotlib.pyplot as plt\n#     if df is None or df.empty:\n#         print('No data available for plotting daily hydrograph.')\n#         return\n#     plt.figure(figsize=(12,6))\n#     plt.plot(df['date'], df['discharge'], label='Discharge (cfs)')\n#     plt.xlabel('Date')\n#     plt.ylabel('Discharge (cfs)')\n#     plt.title('Daily Streamflow Hydrograph for Iowa River (2019-2023)')\n#     plt.grid(True)\n#     plt.tight_layout()\n#     plt.savefig('daily_hydrograph.png')\n#     plt.close()\n\n# Example snippet for annual summary plot:\n# def plot_annual_summary(annual_df):\n#     import matplotlib.pyplot as plt\n#     if annual_df is None or annual_df.empty:\n#         print('No annual summary data available for plotting.')\n#         return\n#     plt.figure(figsize=(10,6))\n#     plt.bar(annual_df['year'], annual_df['mean_flow'], label='Mean Flow')\n#     plt.plot(annual_df['year'], annual_df['7day_low_flow'], color='red', marker='o', label='7-Day Low Flow')\n#     plt.xlabel('Year')\n#     plt.ylabel('Flow (cfs)')\n#     plt.title('Annual Flow Indicators for Iowa River (2019-2023)')\n#     plt.legend()\n#     plt.tight_layout()\n#     plt.savefig('annual_summary.png')\n#     plt.close()",
+      "tool_config": {},
+      "expected_outcome": "Two image files: 'daily_hydrograph.png' (daily discharge trend) and 'annual_summary.png' (annual indicators summary) saved in the workspace.",
+      "data_source": ""
+    },
+    {
+      "step_number": 6,
+      "type": "code:script",
+      "description": "Add main execution block to run the experiment",
+      "action": "",
+      "llm_edit_instruction": "Add a main execution block (using 'if __name__ == \"__main__\":') to the end of the script. Inside this block:\n1. Print a starting message for the experiment.\n2. Define parameters: set 'usgs_site_number' to '05454500', 'start_date_str' to '2019-01-01', and 'end_date_str' to '2023-12-31'.\n3. Call 'fetch_streamflow_data' with these parameters and store the result.\n4. If the DataFrame is not None and not empty, print the number of records fetched.\n5. Validate the data with 'validate_data'.\n6. Compute annual indicators using 'calculate_annual_indicators'.\n7. Generate the daily hydrograph via 'plot_daily_hydrograph'.\n8. Generate the annual summary plot via 'plot_annual_summary'.\n9. Print a final message indicating completion of the experiment.",
+      "code_snippet": "# Example main block:\n# if __name__ == '__main__':\n#     print('Starting experiment: Iowa River daily streamflow analysis')\n#     site = '05454500'\n#     start_date, end_date = '2019-01-01', '2023-12-31'\n#     data_df = fetch_streamflow_data(site, start_date, end_date)\n#     if data_df is not None and not data_df.empty:\n#         print(f'Data fetched with {len(data_df)} records')\n#         valid_df = validate_data(data_df)\n#         annual_summary = calculate_annual_indicators(valid_df)\n#         plot_daily_hydrograph(valid_df)\n#         plot_annual_summary(annual_summary)\n#     else:\n#         print('Error: No data fetched or empty dataset.')\n#     print('Experiment finished.')",
+      "tool_config": {},
+      "expected_outcome": "The script executes sequentially: fetching, validating, processing, and visualizing data. Two image files ('daily_hydrograph.png' and 'annual_summary.png') are saved, and console messages confirm progress.",
+      "data_source": ""
+    }
+  ],
+  "conclusion": "The experiment effectively retrieves daily streamflow data for the Iowa River (USGS 05454500) for 2019-2023, computes annual hydrological indicators such as mean flow, 7-day low flow, and peak flow date, and produces clear visualizations. This analysis, despite potential data access challenges, provides valuable insights into seasonal variations and extreme flow events for further hydrological and water resource management studies."
+}
